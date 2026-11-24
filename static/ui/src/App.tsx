@@ -23,6 +23,8 @@ import {
   type LedgerEntry,
 } from '../../../src/core/index';
 import { AuditLedgerTab } from './components/AuditLedgerTab';
+import { CommandPalette, type CommandItem } from './components/CommandPalette';
+import { ConfluenceBylineView } from './components/ConfluenceBylineView';
 import { EvidenceGraphCanvas } from './components/EvidenceGraphCanvas';
 import { FaultLabDrawer } from './components/FaultLabDrawer';
 import { GitBranchIcon, LockIcon, ShieldCheckIcon, SlidersIcon } from './components/Icons';
@@ -38,8 +40,9 @@ export const App: React.FC = () => {
     isForgeRuntime: false,
   });
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [previewIssuePanel, setPreviewIssuePanel] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'studio' | 'issue-panel' | 'confluence-byline'>('studio');
   const [faultLabOpen, setFaultLabOpen] = useState(false);
+  const [cmdkOpen, setCmdkOpen] = useState(false);
   const [bundle, setBundle] = useState<WorkspaceBundle | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string>('SPEC-BOLUS');
   const [activeView, setActiveView] = useState<StudioView>('graph');
@@ -70,15 +73,19 @@ export const App: React.FC = () => {
         const demoStateParam = params.get('demoState');
         const drawerParam = params.get('drawer');
         const themeParam = params.get('theme');
+        const cmdkParam = params.get('cmdk');
 
         if (themeParam === 'light' || themeParam === 'dark') {
           setTheme(themeParam);
         }
-        if (viewParam === 'issue-panel') {
-          setPreviewIssuePanel(true);
+        if (viewParam === 'issue-panel' || viewParam === 'confluence-byline') {
+          setPreviewMode(viewParam);
         }
         if (drawerParam === 'fault-lab') {
           setFaultLabOpen(true);
+        }
+        if (cmdkParam === '1') {
+          setCmdkOpen(true);
         }
         if (tabParam === 'graph' || tabParam === 'mcp' || tabParam === 'ledger') {
           setActiveView(tabParam);
@@ -133,6 +140,17 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     void loadInitial();
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCmdkOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   const selectedNodeForDraft = bundle
@@ -412,32 +430,129 @@ export const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const isCompactIssuePanel =
-    viewContext.moduleKey === 'tracegate-issue-gate' || previewIssuePanel;
+  const commandItems: CommandItem[] = [
+    ...snapshot.nodes.map((node) => ({
+      id: `inspect-${node.id}`,
+      label: `Inspect ${node.externalId} — ${node.title}`,
+      group: node.sourceProduct,
+      keywords: `${node.id} ${node.pillar} ${node.status}`,
+      run: () => {
+        setActiveView('graph');
+        setSelectedNodeId(node.id);
+      },
+    })),
+    {
+      id: 'gov-cosign',
+      label: 'Co-Sign as Lead QA (Independent Certification)',
+      group: 'Governance',
+      run: () => void handleIndependentQaSign(),
+    },
+    {
+      id: 'gov-commit',
+      label: 'Commit Governed Release (Two-Phase Commit)',
+      group: 'Governance',
+      run: () => void handleCommit(),
+    },
+    {
+      id: 'mcp-eval',
+      label: 'MCP: Run evaluate-release-gate',
+      group: 'rovo:mcp',
+      run: () => {
+        setActiveView('mcp');
+        void handleRunMcpTool('evaluate-release-gate');
+      },
+    },
+    {
+      id: 'mcp-diff',
+      label: 'MCP: Run inspect-evidence-diff',
+      group: 'rovo:mcp',
+      run: () => {
+        setActiveView('mcp');
+        void handleRunMcpTool('inspect-evidence-diff');
+      },
+    },
+    {
+      id: 'fault-drift',
+      label: `Fault Lab: Inject Spec Drift (${activePreset.nextTamperValue})`,
+      group: 'Simulation',
+      run: () => void handleSimulateDrift(),
+    },
+    {
+      id: 'fault-sod',
+      label: 'Fault Lab: Test Self-Approval (Segregation of Duties)',
+      group: 'Simulation',
+      run: () => void handleSelfSign(),
+    },
+    {
+      id: 'fault-race',
+      label: 'Fault Lab: Simulate Mid-Flight Commit Race',
+      group: 'Simulation',
+      run: () => void handleSimulateCommitRace(),
+    },
+    {
+      id: 'fault-reset',
+      label: 'Fault Lab: Restore Clean Certified Baseline',
+      group: 'Simulation',
+      run: () => void handleResetDemo(),
+    },
+    {
+      id: 'export-pack',
+      label: 'Export Regulator Audit Evidence Pack (.md)',
+      group: 'Audit Ledger',
+      run: handleDownloadAuditPack,
+    },
+    ...Object.values(INDUSTRY_PRESETS).map((preset) => ({
+      id: `preset-${preset.id}`,
+      label: `Switch Baseline: ${preset.label}`,
+      group: preset.standard,
+      run: () => void handleSeedDemo(preset.id),
+    })),
+    {
+      id: 'ui-theme',
+      label: `Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Theme`,
+      group: 'Appearance',
+      run: () => setTheme((t) => (t === 'dark' ? 'light' : 'dark')),
+    },
+  ];
 
-  if (isCompactIssuePanel) {
+  const isIssuePanel =
+    viewContext.moduleKey === 'tracegate-issue-gate' || previewMode === 'issue-panel';
+  const isConfluenceByline =
+    viewContext.moduleKey === 'tracegate-confluence-byline' ||
+    previewMode === 'confluence-byline';
+
+  if (isIssuePanel || isConfluenceByline) {
     return (
       <div data-theme={theme} style={{ minHeight: '100vh', background: 'var(--bg-canvas)' }}>
         {!viewContext.isForgeRuntime && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 18px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 18px 0' }}>
             <button
               type="button"
               className="tg-btn tg-btn-sm"
-              onClick={() => setPreviewIssuePanel(false)}
+              onClick={() => setPreviewMode('studio')}
             >
               Return to Full Studio
             </button>
           </div>
         )}
-        <IssuePanelView
-          bundle={bundle}
-          issueKey={viewContext.issueKey ?? releaseKey}
-          busy={busy}
-          onRefresh={() => void handleRefresh()}
-          onSelfSign={() => void handleSelfSign()}
-          onIndependentQaSign={() => void handleIndependentQaSign()}
-          onCommit={() => void handleCommit()}
-        />
+        {isConfluenceByline ? (
+          <ConfluenceBylineView
+            bundle={bundle}
+            busy={busy}
+            onSync={() => void handleRefresh()}
+            onCoSignQa={() => void handleIndependentQaSign()}
+          />
+        ) : (
+          <IssuePanelView
+            bundle={bundle}
+            issueKey={viewContext.issueKey ?? releaseKey}
+            busy={busy}
+            onRefresh={() => void handleRefresh()}
+            onSelfSign={() => void handleSelfSign()}
+            onIndependentQaSign={() => void handleIndependentQaSign()}
+            onCommit={() => void handleCommit()}
+          />
+        )}
       </div>
     );
   }
@@ -467,13 +582,20 @@ export const App: React.FC = () => {
           <div className="tg-header-actions">
             <button
               type="button"
+              className="tg-btn tg-btn-ghost"
+              onClick={() => setCmdkOpen(true)}
+              aria-label="Open Command Palette (Ctrl+K)"
+            >
+              <span className="tg-kbd">Ctrl K</span>
+            </button>
+
+            <button
+              type="button"
               className="tg-btn"
               onClick={() => setFaultLabOpen(true)}
             >
               <span
-                className={`tg-dot ${
-                  isAllow ? 'tg-dot-emerald' : 'tg-dot-coral'
-                }`}
+                className={`tg-dot ${isAllow ? 'tg-dot-emerald' : 'tg-dot-coral'}`}
                 aria-hidden="true"
               />
               <SlidersIcon size={13} />
@@ -555,7 +677,7 @@ export const App: React.FC = () => {
                       <span>Evidence Lineage</span>
                     </div>
                     <span className="tg-card-sub">
-                      Select any node to inspect digest &amp; clauses
+                      Hover a node to isolate causal path · Click to inspect
                     </span>
                   </div>
 
@@ -621,7 +743,7 @@ export const App: React.FC = () => {
         open={faultLabOpen}
         bundle={bundle}
         isForgeRuntime={viewContext.isForgeRuntime}
-        previewIssuePanel={previewIssuePanel}
+        previewIssuePanel={false}
         nextTamperValue={activePreset.nextTamperValue}
         selectedProjectKey={selectedProjectKey}
         selectedSpaceId={selectedSpaceId}
@@ -639,8 +761,18 @@ export const App: React.FC = () => {
         onSyncLive={() => void handleRefresh()}
         onToggleIssuePanel={() => {
           setFaultLabOpen(false);
-          setPreviewIssuePanel((v) => !v);
+          setPreviewMode((m) => (m === 'issue-panel' ? 'studio' : 'issue-panel'));
         }}
+        onPreviewConfluenceByline={() => {
+          setFaultLabOpen(false);
+          setPreviewMode('confluence-byline');
+        }}
+      />
+
+      <CommandPalette
+        open={cmdkOpen}
+        commands={commandItems}
+        onClose={() => setCmdkOpen(false)}
       />
     </div>
   );

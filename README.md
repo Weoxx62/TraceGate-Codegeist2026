@@ -1,6 +1,7 @@
 # TraceGate
 
 [![TraceGate CI](https://github.com/Weoxx62/TraceGate-Codegeist2026/actions/workflows/ci.yml/badge.svg)](https://github.com/Weoxx62/TraceGate-Codegeist2026/actions/workflows/ci.yml)
+[![Live Studio Demo](https://img.shields.io/badge/Live%20Demo-0--Login%20Interactive-10B981.svg)](https://weoxx62.github.io/TraceGate-Codegeist2026/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](./LICENSE)
 [![Runs on Atlassian](https://img.shields.io/badge/Atlassian%20Forge-Runs%20on%20Atlassian-0052CC.svg)](https://developer.atlassian.com/platform/forge/)
 
@@ -115,4 +116,4 @@ npm run build
 
 ## License & Policies
 
-Licensed under the [Apache License 2.0](./LICENSE) · [Privacy Policy](./PRIVACY.md) · [Terms of Service](./TERMS.md)
+Licensed under the [Apache License 2.0](./LICENSE) · [Security Architecture](./SECURITY.md) · [Privacy Policy](./PRIVACY.md) · [Terms of Service](./TERMS.md)

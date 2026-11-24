@@ -23,6 +23,7 @@ interface FaultLabDrawerProps {
   onSeedWorkspace: () => void;
   onSyncLive: () => void;
   onToggleIssuePanel: () => void;
+  onPreviewConfluenceByline: () => void;
 }
 
 export const FaultLabDrawer: React.FC<FaultLabDrawerProps> = ({
@@ -46,6 +47,7 @@ export const FaultLabDrawer: React.FC<FaultLabDrawerProps> = ({
   onSeedWorkspace,
   onSyncLive,
   onToggleIssuePanel,
+  onPreviewConfluenceByline,
 }) => {
   if (!open) return null;
 
@@ -257,13 +259,24 @@ export const FaultLabDrawer: React.FC<FaultLabDrawerProps> = ({
           </div>
 
           {!isForgeRuntime && (
-            <button
-              type="button"
-              className="tg-btn"
-              onClick={onToggleIssuePanel}
-            >
-              {previewIssuePanel ? 'Return to Full Studio' : 'Preview Jira Issue Panel'}
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="tg-btn"
+                style={{ flex: 1 }}
+                onClick={onToggleIssuePanel}
+              >
+                {previewIssuePanel ? 'Full Studio' : 'Jira Issue Panel'}
+              </button>
+              <button
+                type="button"
+                className="tg-btn"
+                style={{ flex: 1 }}
+                onClick={onPreviewConfluenceByline}
+              >
+                Confluence Byline
+              </button>
+            </div>
           )}
         </div>
       </div>

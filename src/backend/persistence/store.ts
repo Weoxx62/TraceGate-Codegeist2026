@@ -91,6 +91,7 @@ async function persistToSql(snapshot: EvidenceGraphSnapshot): Promise<void> {
     workspaceKey: snapshot.workspaceKey,
     projectKey: snapshot.projectKey,
     confluenceSpaceKey: snapshot.confluenceSpaceKey,
+    industryPreset: snapshot.industryPreset,
     scenarioTitle: snapshot.scenarioTitle,
     releaseNodeId: snapshot.releaseNodeId,
     policy: snapshot.policy,

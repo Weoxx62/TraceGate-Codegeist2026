@@ -32,6 +32,7 @@ import {
   saveSnapshot,
   type StorageDiagnostics,
 } from './persistence/store';
+import { validateNodeId, validateRawContent } from './validation';
 
 export interface WorkspaceBundle {
   snapshot: EvidenceGraphSnapshot;
@@ -175,17 +176,22 @@ export async function editNodeContentService(params: {
   rawContent: string;
 }): Promise<WorkspaceBundle & { hashChanged: boolean; editMessage: string }> {
   let snapshot = await loadSnapshot();
+  const safeNodeId = validateNodeId(
+    params.nodeId,
+    snapshot.nodes.map((n) => n.id),
+  );
+  const safeContent = validateRawContent(params.rawContent);
   const env = await fetchEnvironmentTargets();
   const updated = updateNodeRawContent(
     snapshot,
-    params.nodeId,
-    params.rawContent,
+    safeNodeId,
+    safeContent,
     env.currentUser.displayName,
   );
   snapshot = updated.snapshot;
 
   if (
-    params.nodeId === 'SPEC-BOLUS' &&
+    safeNodeId === 'SPEC-BOLUS' &&
     snapshot.seededConfluencePageId &&
     env.spaces[0] &&
     updated.hashChanged

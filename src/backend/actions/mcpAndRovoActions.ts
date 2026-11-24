@@ -4,6 +4,7 @@ import {
   recordAgentToolInvocation,
   runGovernedReleaseCommit,
 } from '../service';
+import { sanitizeActorLabel, validateSha256Hex } from '../validation';
 
 interface ActionPayload {
   inputs?: Record<string, unknown>;
@@ -28,7 +29,10 @@ function getParam(payload: ActionPayload, key: string): string | undefined {
 }
 
 export async function evaluateReleaseGate(payload: ActionPayload) {
-  const actor = getParam(payload, 'actorId') ?? 'Rovo / MCP Client';
+  const actor = sanitizeActorLabel(
+    getParam(payload, 'actorId'),
+    'Rovo / MCP Client',
+  );
   const bundle = await getWorkspaceBundle(false);
 
   await recordAgentToolInvocation({
@@ -50,7 +54,10 @@ export async function evaluateReleaseGate(payload: ActionPayload) {
 }
 
 export async function inspectEvidenceDiff(payload: ActionPayload) {
-  const actor = getParam(payload, 'actorId') ?? 'Rovo / MCP Client';
+  const actor = sanitizeActorLabel(
+    getParam(payload, 'actorId'),
+    'Rovo / MCP Client',
+  );
   const bundle = await getWorkspaceBundle(false);
 
   await recordAgentToolInvocation({
@@ -67,21 +74,36 @@ export async function inspectEvidenceDiff(payload: ActionPayload) {
 }
 
 export async function commitGovernedRelease(payload: ActionPayload) {
-  const actor = getParam(payload, 'actorId') ?? 'Rovo / MCP Client';
-  const bundle = await getWorkspaceBundle(false);
-  const expectedFingerprint =
-    getParam(payload, 'expectedFingerprint') ?? bundle.evaluation.evidenceFingerprint;
+  const actor = sanitizeActorLabel(
+    getParam(payload, 'actorId'),
+    'Rovo / MCP Client',
+  );
+  const validFingerprint = validateSha256Hex(
+    getParam(payload, 'expectedFingerprint'),
+  );
 
+  // Enforce Two-Phase Commit strictly (OWASP LLM06): never auto-fill from live state
   const commitOutcome = await runGovernedReleaseCommit({
-    expectedFingerprint,
+    expectedFingerprint: validFingerprint ?? 'MISSING_PHASE1_EXPECTED_FINGERPRINT',
     actorOverride: actor,
   });
+
+  if (!validFingerprint) {
+    return {
+      ...commitOutcome.commitResult,
+      message:
+        'Two-Phase Commit aborted: valid 64-character SHA-256 expectedFingerprint from evaluate-release-gate is required.',
+    };
+  }
 
   return commitOutcome.commitResult;
 }
 
 export async function createRemediationTasks(payload: ActionPayload) {
-  const actor = getParam(payload, 'actorId') ?? 'Rovo / MCP Client';
+  const actor = sanitizeActorLabel(
+    getParam(payload, 'actorId'),
+    'Rovo / MCP Client',
+  );
   const res = await createRemediationTasksForBlockers(actor);
 
   return {

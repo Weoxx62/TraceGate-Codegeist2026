@@ -1,8 +1,9 @@
-import React from 'react';
-import type {
-  EvaluationResult,
-  EvidenceEdge,
-  EvidenceNode,
+import React, { useMemo, useState } from 'react';
+import {
+  computeConnectedLineageIds,
+  type EvaluationResult,
+  type EvidenceEdge,
+  type EvidenceNode,
 } from '../../../../src/core/index';
 
 interface NodeSlot {
@@ -78,10 +79,22 @@ export const EvidenceGraphCanvas: React.FC<{
   selectedNodeId: string;
   onSelectNode: (nodeId: string) => void;
 }> = ({ nodes, edges, evaluation, selectedNodeId, onSelectNode }) => {
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+
   const impactedIds = new Set([
     ...evaluation.driftedRootIds,
     ...evaluation.suspectNodeIds,
   ]);
+
+  const activeFocus = useMemo(() => {
+    if (!hoveredNodeId) return null;
+    return computeConnectedLineageIds(hoveredNodeId, edges);
+  }, [hoveredNodeId, edges]);
+
+  const blastByNode = useMemo(
+    () => new Map(evaluation.blastRadius.map((b) => [b.nodeId, b])),
+    [evaluation.blastRadius],
+  );
 
   return (
     <svg
@@ -137,6 +150,9 @@ export const EvidenceGraphCanvas: React.FC<{
           impactedIds.has(edge.fromId) &&
           (impactedIds.has(edge.toId) || edge.toId === evaluation.releaseId);
 
+        const edgeKey = `${edge.fromId}->${edge.toId}`;
+        const dimmed = activeFocus !== null && !activeFocus.edgeKeys.has(edgeKey);
+
         const x1 = from.x + NODE_WIDTH;
         const y1 = from.y + NODE_HEIGHT / 2;
         const x2 = to.x;
@@ -145,12 +161,17 @@ export const EvidenceGraphCanvas: React.FC<{
 
         return (
           <path
-            key={`${edge.fromId}->${edge.toId}`}
+            key={edgeKey}
             d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
+            className={isImpacted ? 'tg-edge-impact-anim' : undefined}
             fill="none"
             stroke={isImpacted ? 'var(--svg-edge-impact)' : 'var(--svg-edge-clean)'}
             strokeWidth={isImpacted ? 1.8 : 1.3}
             strokeDasharray={isImpacted ? '4 3' : undefined}
+            style={{
+              opacity: dimmed ? 0.18 : 1,
+              transition: 'opacity 150ms ease',
+            }}
             markerEnd={
               isImpacted ? 'url(#v3-arrow-impact)' : 'url(#v3-arrow-clean)'
             }
@@ -164,6 +185,14 @@ export const EvidenceGraphCanvas: React.FC<{
 
         const style = getNodeStyle(node, evaluation);
         const isSelected = node.id === selectedNodeId;
+        const isHovered = node.id === hoveredNodeId;
+        const dimmed = activeFocus !== null && !activeFocus.nodeIds.has(node.id);
+        const impactInfo = blastByNode.get(node.id);
+
+        const rightLabel =
+          (isHovered || isSelected) && impactInfo
+            ? `Hop +${impactInfo.depth} · ${style.statusWord}`
+            : style.statusWord;
 
         return (
           <g
@@ -174,21 +203,29 @@ export const EvidenceGraphCanvas: React.FC<{
             aria-label={`Inspect ${node.externalId}: ${node.title} (${style.statusWord})`}
             aria-pressed={isSelected}
             onClick={() => onSelectNode(node.id)}
+            onMouseEnter={() => setHoveredNodeId(node.id)}
+            onMouseLeave={() => setHoveredNodeId(null)}
+            onFocus={() => setHoveredNodeId(node.id)}
+            onBlur={() => setHoveredNodeId(null)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 onSelectNode(node.id);
               }
             }}
-            style={{ cursor: 'pointer' }}
+            style={{
+              cursor: 'pointer',
+              opacity: dimmed ? 0.28 : 1,
+              transition: 'opacity 150ms ease',
+            }}
           >
             <rect
               width={NODE_WIDTH}
               height={NODE_HEIGHT}
               rx={8}
               fill={isSelected ? 'var(--svg-node-selected)' : 'var(--svg-node-bg)'}
-              stroke={isSelected ? 'var(--accent)' : 'var(--border)'}
-              strokeWidth={isSelected ? 1.6 : 1}
+              stroke={isSelected || isHovered ? 'var(--accent)' : 'var(--border)'}
+              strokeWidth={isSelected ? 1.6 : isHovered ? 1.3 : 1}
             />
             <circle cx={15} cy={19} r={3.5} fill={style.dot} />
             <text
@@ -199,17 +236,17 @@ export const EvidenceGraphCanvas: React.FC<{
               fontFamily="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
               fill="var(--ink-secondary)"
             >
-              {formatShortId(node.externalId)}
+              {formatShortId(node.externalId, 12)}
             </text>
             <text
-              x={NODE_WIDTH - 12}
+              x={NODE_WIDTH - 11}
               y={22.5}
               textAnchor="end"
-              fontSize="10.5"
+              fontSize="10"
               fontWeight="600"
               fill={style.labelColor}
             >
-              {style.statusWord}
+              {rightLabel}
             </text>
             <text
               x={12}

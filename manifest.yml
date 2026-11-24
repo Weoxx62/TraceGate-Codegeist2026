@@ -28,6 +28,15 @@ modules:
         function: resolver-fn
       viewportSize: medium
 
+  confluence:contentBylineItem:
+    - key: tracegate-confluence-byline
+      title: TraceGate Spec Status
+      tooltip: Inspect SHA-256 specification baseline and downstream Jira blast radius
+      icon: resource:main-ui;tracegate-icon.svg
+      resource: main-ui
+      resolver:
+        function: resolver-fn
+
   jira:workflowValidator:
     - key: tracegate-release-validator
       name: TraceGate Evidence Release Gate
@@ -115,7 +124,7 @@ modules:
         expectedFingerprint:
           title: Expected Evidence Fingerprint
           type: string
-          required: false
+          required: true
           description: SHA-256 fingerprint captured during evaluate-release-gate.
         actorId:
           title: Actor ID

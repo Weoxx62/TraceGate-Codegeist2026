@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
-import type { ClauseDiff, EvidenceNode } from '../../../../src/core/index';
+import {
+  computeInlineTokenDiff,
+  type ClauseDiff,
+  type EvidenceNode,
+} from '../../../../src/core/index';
 import { CheckIcon, CopyIcon } from './Icons';
 
 interface NodeInspectorPaneProps {
@@ -70,16 +74,27 @@ export const NodeInspectorPane: React.FC<NodeInspectorPaneProps> = ({
             <div className="tg-diff-head">
               Drift detected · {nodeDiffs[0].clauseKey}
             </div>
-            {nodeDiffs.map((diff) => (
-              <div key={diff.clauseKey}>
-                <div className="tg-diff-line tg-diff-del">
-                  - {diff.approvedLine ?? '(none)'}
+            {nodeDiffs.map((diff) => {
+              const tok = computeInlineTokenDiff(diff.approvedLine, diff.liveLine);
+              return (
+                <div key={diff.clauseKey}>
+                  <div className="tg-diff-line tg-diff-del">
+                    - {tok.prefix}
+                    {tok.removed && (
+                      <mark className="tg-diff-token-del">{tok.removed}</mark>
+                    )}
+                    {tok.suffix}
+                  </div>
+                  <div className="tg-diff-line tg-diff-add">
+                    + {tok.prefix}
+                    {tok.added && (
+                      <mark className="tg-diff-token-add">{tok.added}</mark>
+                    )}
+                    {tok.suffix}
+                  </div>
                 </div>
-                <div className="tg-diff-line tg-diff-add">
-                  + {diff.liveLine ?? '(removed)'}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -171,7 +186,10 @@ export const NodeInspectorPane: React.FC<NodeInspectorPaneProps> = ({
           </div>
           <div className="tg-kv-row">
             <span className="tg-kv-key">Live SHA-256</span>
-            <span className="tg-kv-val tg-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span
+              className="tg-kv-val tg-mono"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
               <span>{node.liveHash.slice(0, 12)}…</span>
               <button
                 type="button"

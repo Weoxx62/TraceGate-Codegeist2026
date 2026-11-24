@@ -26,6 +26,24 @@ export interface AtlassianEnvironmentTargets {
   jiraConnected: boolean;
 }
 
+type ForgeRoute = Parameters<ReturnType<typeof api.asUser>['requestJira']>[0];
+type ForgeInit = Parameters<ReturnType<typeof api.asUser>['requestJira']>[1];
+
+async function requestJiraWithFallback(target: ForgeRoute, init?: ForgeInit) {
+  try {
+    const userRes = await api.asUser().requestJira(target, init);
+    if (userRes.ok || userRes.status < 400) {
+      return userRes;
+    }
+    if (userRes.status === 401 || userRes.status === 403) {
+      return await api.asApp().requestJira(target, init);
+    }
+    return userRes;
+  } catch {
+    return api.asApp().requestJira(target, init);
+  }
+}
+
 function toAdfDoc(lines: string[]): Record<string, unknown> {
   return {
     type: 'doc',
@@ -103,9 +121,9 @@ export async function fetchEnvironmentTargets(): Promise<AtlassianEnvironmentTar
 
 async function getProjectDefaultIssueType(projectKey: string): Promise<string> {
   try {
-    const res = await api
-      .asUser()
-      .requestJira(route`/rest/api/3/project/${projectKey}`);
+    const res = await requestJiraWithFallback(
+      route`/rest/api/3/project/${projectKey}`,
+    );
     if (res.ok) {
       const data = (await res.json()) as {
         issueTypes?: Array<{ id: string; name: string; subtask?: boolean }>;
@@ -129,7 +147,7 @@ export async function createJiraIssue(params: {
 }): Promise<string | null> {
   try {
     const issueTypeName = await getProjectDefaultIssueType(params.projectKey);
-    const res = await api.asUser().requestJira(route`/rest/api/3/issue`, {
+    const res = await requestJiraWithFallback(route`/rest/api/3/issue`, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -389,9 +407,9 @@ export async function transitionAndCommentReleaseIssue(params: {
 }): Promise<boolean> {
   if (!params.issueKey) return false;
   try {
-    const transRes = await api
-      .asUser()
-      .requestJira(route`/rest/api/3/issue/${params.issueKey}/transitions`);
+    const transRes = await requestJiraWithFallback(
+      route`/rest/api/3/issue/${params.issueKey}/transitions`,
+    );
     if (transRes.ok) {
       const data = (await transRes.json()) as {
         transitions?: Array<{ id: string; name: string }>;
@@ -402,22 +420,23 @@ export async function transitionAndCommentReleaseIssue(params: {
         transitions.at(-1);
 
       if (target) {
-        await api
-          .asUser()
-          .requestJira(route`/rest/api/3/issue/${params.issueKey}/transitions`, {
+        await requestJiraWithFallback(
+          route`/rest/api/3/issue/${params.issueKey}/transitions`,
+          {
             method: 'POST',
             headers: {
               Accept: 'application/json',
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ transition: { id: target.id } }),
-          });
+          },
+        );
       }
     }
 
-    await api
-      .asUser()
-      .requestJira(route`/rest/api/3/issue/${params.issueKey}/comment`, {
+    await requestJiraWithFallback(
+      route`/rest/api/3/issue/${params.issueKey}/comment`,
+      {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -426,7 +445,8 @@ export async function transitionAndCommentReleaseIssue(params: {
         body: JSON.stringify({
           body: toAdfDoc(['[TraceGate Governed Commit]', params.commentSummary]),
         }),
-      });
+      },
+    );
     return true;
   } catch {
     return false;

@@ -1,4 +1,5 @@
 import React from 'react';
+import { computeInlineTokenDiff } from '../../../../src/core/index';
 import type { WorkspaceBundle } from '../bridge/forgeClient';
 import { CheckIcon, CrossIcon, LockIcon, RefreshIcon, ShieldCheckIcon } from './Icons';
 
@@ -65,16 +66,27 @@ export const IssuePanelView: React.FC<{
               <div className="tg-diff-head">
                 Upstream drift · {evaluation.clauseDiffs[0].clauseKey}
               </div>
-              {evaluation.clauseDiffs.map((diff) => (
-                <div key={diff.clauseKey}>
-                  <div className="tg-diff-line tg-diff-del">
-                    - {diff.approvedLine ?? '(none)'}
+              {evaluation.clauseDiffs.map((diff) => {
+                const tok = computeInlineTokenDiff(diff.approvedLine, diff.liveLine);
+                return (
+                  <div key={diff.clauseKey}>
+                    <div className="tg-diff-line tg-diff-del">
+                      - {tok.prefix}
+                      {tok.removed && (
+                        <mark className="tg-diff-token-del">{tok.removed}</mark>
+                      )}
+                      {tok.suffix}
+                    </div>
+                    <div className="tg-diff-line tg-diff-add">
+                      + {tok.prefix}
+                      {tok.added && (
+                        <mark className="tg-diff-token-add">{tok.added}</mark>
+                      )}
+                      {tok.suffix}
+                    </div>
                   </div>
-                  <div className="tg-diff-line tg-diff-add">
-                    + {diff.liveLine ?? '(removed)'}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

@@ -19,8 +19,8 @@ export async function validateReleaseTransition(event: WorkflowValidatorEvent) {
   const trackedReleaseKey =
     bundle.snapshot.seededJiraIssueKeys[bundle.snapshot.releaseNodeId];
 
-  // Do not block unrelated Jira issues in the site
-  if (trackedReleaseKey && issueKey && issueKey !== trackedReleaseKey) {
+  // Do not block unrelated Jira issues or unseeded workspaces
+  if (!trackedReleaseKey || !issueKey || issueKey !== trackedReleaseKey) {
     return { result: true };
   }
 
