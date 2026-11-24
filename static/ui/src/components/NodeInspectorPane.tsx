@@ -36,6 +36,11 @@ export const NodeInspectorPane: React.FC<NodeInspectorPaneProps> = ({
         ? 'tg-pill-amber'
         : 'tg-pill-emerald';
 
+  const safeAtlassianUrl =
+    node.url && /^https:\/\/[a-zA-Z0-9.-]+\.atlassian\.net\//i.test(node.url)
+      ? node.url
+      : null;
+
   const handleCopyHash = async () => {
     try {
       await navigator.clipboard.writeText(node.liveHash);
@@ -66,6 +71,19 @@ export const NodeInspectorPane: React.FC<NodeInspectorPaneProps> = ({
         <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink-primary)' }}>
           {node.title}
         </div>
+        {safeAtlassianUrl && (
+          <div style={{ marginTop: 8 }}>
+            <a
+              href={safeAtlassianUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="tg-btn tg-btn-sm"
+              style={{ textDecoration: 'none' }}
+            >
+              Open in {node.sourceProduct === 'CONFLUENCE' ? 'Confluence' : 'Jira'} ↗
+            </a>
+          </div>
+        )}
       </div>
 
       {nodeDiffs.length > 0 && (

@@ -220,3 +220,49 @@ export function analyzeEvidenceGraph(
     downstreamByNode,
   };
 }
+
+/**
+ * Recomputes derived node statuses (`DRIFTED`, `SUSPECT`, `BLOCKED`, or clean
+ * `CERTIFIED`/`PASSED`/`OPEN`/`RELEASED`) so upstream edits or Confluence syncs
+ * immediately update every downstream node in persisted snapshots.
+ */
+export function reconcileGraphNodeStatuses(
+  nodes: EvidenceNode[],
+  edges: EvidenceEdge[],
+  releaseNodeId: string,
+): EvidenceNode[] {
+  const resetNodes: EvidenceNode[] = nodes.map((node) => {
+    if (node.id === releaseNodeId) {
+      return {
+        ...node,
+        status: node.status === 'RELEASED' ? 'RELEASED' : 'OPEN',
+      };
+    }
+    if (node.approvedHash !== null && node.liveHash !== node.approvedHash) {
+      return { ...node, status: 'DRIFTED' };
+    }
+    return {
+      ...node,
+      status: node.nodeType === 'VERIFICATION_TEST' ? 'PASSED' : 'CERTIFIED',
+    };
+  });
+
+  const analysis = analyzeEvidenceGraph(resetNodes, edges);
+  const driftedSet = new Set(analysis.driftedRootIds);
+  const suspectSet = new Set(analysis.suspectNodeIds);
+  const hasReleaseBlocker =
+    driftedSet.size > 0 || suspectSet.size > 0 || analysis.cycles.length > 0;
+
+  return resetNodes.map((node) => {
+    if (node.id === releaseNodeId) {
+      return hasReleaseBlocker ? { ...node, status: 'BLOCKED' } : node;
+    }
+    if (driftedSet.has(node.id)) {
+      return { ...node, status: 'DRIFTED' };
+    }
+    if (suspectSet.has(node.id)) {
+      return { ...node, status: 'SUSPECT' };
+    }
+    return node;
+  });
+}

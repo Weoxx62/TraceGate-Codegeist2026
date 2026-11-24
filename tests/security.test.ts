@@ -3,7 +3,12 @@ import {
   buildIndustryDemoSnapshot,
   computeConnectedLineageIds,
   computeInlineTokenDiff,
+  DEMO_USERS,
+  evaluateReleasePolicy,
   executeTwoPhaseCommit,
+  generateAuditCertificateHtml,
+  generateAuditPackMarkdown,
+  verifyLedgerChain,
 } from '../src/core/index';
 import {
   MAX_RAW_CONTENT_LENGTH,
@@ -114,5 +119,33 @@ describe('Inline Token Diff & Causal Lineage Graph Utilities', () => {
     expect(focus.nodeIds.has('SPEC-ALARM')).toBe(true);
     expect(focus.nodeIds.has('REQ-102')).toBe(true);
     expect(focus.nodeIds.has('TEST-402')).toBe(true);
+  });
+
+  it('escapes Markdown table pipes and HTML tags in exported Audit Packs and Certificates', () => {
+    const base = buildIndustryDemoSnapshot('FINTECH_DORA', 'DRIFTED');
+    const hostileActor = 'Evil | <script>alert(1)</script> | Admin';
+    const hostileNodes = base.nodes.map((n, idx) =>
+      idx === 0 ? { ...n, approvedBy: hostileActor } : n,
+    );
+    const hostileLedger = base.ledger.map((e, idx) =>
+      idx === 0
+        ? { ...e, payload: { ...e.payload, actorId: hostileActor } }
+        : e,
+    );
+    const snap = { ...base, nodes: hostileNodes, ledger: hostileLedger };
+    const evaluation = evaluateReleasePolicy(
+      snap.nodes,
+      snap.edges,
+      snap.releaseNodeId,
+      DEMO_USERS.RELEASE_MGR,
+    );
+    const verification = verifyLedgerChain(snap.ledger);
+
+    const md = generateAuditPackMarkdown(snap, evaluation, verification);
+    expect(md).toContain('Evil \\| <script>alert(1)</script> \\| Admin');
+
+    const html = generateAuditCertificateHtml(snap, evaluation, verification);
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
   });
 });

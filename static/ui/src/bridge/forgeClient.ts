@@ -25,6 +25,7 @@ export interface WorkspaceBundle {
     spaces: Array<{ id: string; key: string; name: string }>;
     confluenceConnected: boolean;
     jiraConnected: boolean;
+    siteBaseUrl?: string | null;
   };
   storage?: {
     sqlAvailable: boolean;
@@ -407,7 +408,7 @@ export async function runMcpSimulatorAction(params: {
     }
 
     const commit = await executeCommitAction(
-      params.expectedFingerprint ?? bundle.evaluation.evidenceFingerprint,
+      params.expectedFingerprint ?? 'MISSING_PHASE1_EXPECTED_FINGERPRINT',
     );
     return {
       tool: 'commit-governed-release',

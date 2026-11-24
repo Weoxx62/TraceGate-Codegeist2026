@@ -109,13 +109,13 @@ async function persistToSql(snapshot: EvidenceGraphSnapshot): Promise<void> {
     .execute();
 
   await sql.prepare('DELETE FROM tg_nodes;').execute();
-  for (const node of snapshot.nodes) {
-    await sql
-      .prepare(
-        `INSERT INTO tg_nodes (id, external_id, source_product, pillar, node_type, title, status, version, live_hash, approved_hash, payload_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-      )
-      .bindParams(
+  if (snapshot.nodes.length > 0) {
+    const nodePlaceholders = snapshot.nodes
+      .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .join(', ');
+    const nodeParams: Array<string | number | null> = [];
+    for (const node of snapshot.nodes) {
+      nodeParams.push(
         node.id,
         node.externalId,
         node.sourceProduct,
@@ -127,36 +127,89 @@ async function persistToSql(snapshot: EvidenceGraphSnapshot): Promise<void> {
         node.liveHash,
         node.approvedHash ?? null,
         JSON.stringify(node),
+      );
+    }
+    await sql
+      .prepare(
+        `INSERT INTO tg_nodes (id, external_id, source_product, pillar, node_type, title, status, version, live_hash, approved_hash, payload_json)
+         VALUES ${nodePlaceholders};`,
       )
+      .bindParams(...nodeParams)
       .execute();
   }
 
   await sql.prepare('DELETE FROM tg_edges;').execute();
-  for (const edge of snapshot.edges) {
-    const edgeId = `${edge.fromId}->${edge.toId}:${edge.relation}`.slice(0, 138);
+  if (snapshot.edges.length > 0) {
+    const edgePlaceholders = snapshot.edges
+      .map(() => '(?, ?, ?, ?)')
+      .join(', ');
+    const edgeParams: string[] = [];
+    for (const edge of snapshot.edges) {
+      const edgeId = `${edge.fromId}->${edge.toId}:${edge.relation}`.slice(0, 138);
+      edgeParams.push(edgeId, edge.fromId, edge.toId, edge.relation);
+    }
     await sql
       .prepare(
-        `INSERT INTO tg_edges (edge_id, from_id, to_id, relation) VALUES (?, ?, ?, ?);`,
+        `INSERT INTO tg_edges (edge_id, from_id, to_id, relation) VALUES ${edgePlaceholders};`,
       )
-      .bindParams(edgeId, edge.fromId, edge.toId, edge.relation)
+      .bindParams(...edgeParams)
       .execute();
   }
 
-  await sql.prepare('DELETE FROM tg_ledger;').execute();
-  for (const entry of snapshot.ledger) {
-    await sql
-      .prepare(
-        `INSERT INTO tg_ledger (entry_index, timestamp_iso, prev_hash, entry_hash, event_type, payload_json)
-         VALUES (?, ?, ?, ?, ?, ?);`,
+  // Incremental O(1) append for immutable hash-chained ledger entries;
+  // full reset only when workspace is re-seeded with a new genesis entry.
+  const ledgerStatRes = await sql
+    .prepare<{ cnt: number; max_idx: number | null }>(
+      `SELECT COUNT(*) AS cnt, MAX(entry_index) AS max_idx FROM tg_ledger;`,
+    )
+    .execute();
+  const statRow = ledgerStatRes.rows?.[0];
+  const existingCount = Number(statRow?.cnt ?? 0);
+  const existingMaxIdx =
+    statRow?.max_idx !== null && statRow?.max_idx !== undefined
+      ? Number(statRow.max_idx)
+      : -1;
+
+  let firstHashMatches = false;
+  if (existingCount > 0 && snapshot.ledger.length >= existingCount) {
+    const firstRowRes = await sql
+      .prepare<{ entry_hash: string }>(
+        `SELECT entry_hash FROM tg_ledger WHERE entry_index = 0 LIMIT 1;`,
       )
-      .bindParams(
+      .execute();
+    firstHashMatches =
+      firstRowRes.rows?.[0]?.entry_hash === snapshot.ledger[0]?.entryHash;
+  }
+
+  let entriesToInsert: LedgerEntry[];
+  if (!firstHashMatches || existingCount === 0) {
+    await sql.prepare('DELETE FROM tg_ledger;').execute();
+    entriesToInsert = snapshot.ledger;
+  } else {
+    entriesToInsert = snapshot.ledger.filter((e) => e.index > existingMaxIdx);
+  }
+
+  if (entriesToInsert.length > 0) {
+    const ledgerPlaceholders = entriesToInsert
+      .map(() => '(?, ?, ?, ?, ?, ?)')
+      .join(', ');
+    const ledgerParams: Array<string | number> = [];
+    for (const entry of entriesToInsert) {
+      ledgerParams.push(
         entry.index,
         entry.timestamp,
         entry.prevHash,
         entry.entryHash,
         entry.payload.eventType,
         JSON.stringify(entry),
+      );
+    }
+    await sql
+      .prepare(
+        `INSERT INTO tg_ledger (entry_index, timestamp_iso, prev_hash, entry_hash, event_type, payload_json)
+         VALUES ${ledgerPlaceholders};`,
       )
+      .bindParams(...ledgerParams)
       .execute();
   }
 }

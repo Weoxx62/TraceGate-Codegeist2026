@@ -13,6 +13,7 @@ interface AuditLedgerTabProps {
   onRunTamperTest: () => void;
   onDismissTamperTest: () => void;
   onDownloadAuditPack: () => void;
+  onDownloadCertificateHtml: () => void;
   onExportToConfluence: () => void;
 }
 
@@ -24,6 +25,7 @@ export const AuditLedgerTab: React.FC<AuditLedgerTabProps> = ({
   onRunTamperTest,
   onDismissTamperTest,
   onDownloadAuditPack,
+  onDownloadCertificateHtml,
   onExportToConfluence,
 }) => {
   return (
@@ -55,6 +57,14 @@ export const AuditLedgerTab: React.FC<AuditLedgerTabProps> = ({
           >
             <DownloadIcon size={12} />
             Export (.md)
+          </button>
+          <button
+            type="button"
+            className="tg-btn tg-btn-sm"
+            onClick={onDownloadCertificateHtml}
+          >
+            <DownloadIcon size={12} />
+            Certificate (.html)
           </button>
           <button
             type="button"

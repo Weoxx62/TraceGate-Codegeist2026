@@ -2,6 +2,7 @@ import api, { route } from '@forge/api';
 import {
   generateAuditPackMarkdown,
   hashSpecContent,
+  reconcileGraphNodeStatuses,
   verifyLedgerChain,
   type EvaluationResult,
   type EvidenceGraphSnapshot,
@@ -24,6 +25,7 @@ export interface AtlassianEnvironmentTargets {
   spaces: ConfluenceSpaceOption[];
   confluenceConnected: boolean;
   jiraConnected: boolean;
+  siteBaseUrl?: string | null;
 }
 
 type ForgeRoute = Parameters<ReturnType<typeof api.asUser>['requestJira']>[0];
@@ -59,17 +61,28 @@ export async function fetchEnvironmentTargets(): Promise<AtlassianEnvironmentTar
   let currentUser = { accountId: 'judge-user', displayName: 'Atlassian Judge' };
   let jiraConnected = false;
   let confluenceConnected = false;
+  let siteBaseUrl: string | null = null;
   const projects: AtlassianProjectOption[] = [];
   const spaces: ConfluenceSpaceOption[] = [];
 
   try {
     const meRes = await api.asUser().requestJira(route`/rest/api/3/myself`);
     if (meRes.ok) {
-      const me = (await meRes.json()) as { accountId?: string; displayName?: string };
+      const me = (await meRes.json()) as {
+        accountId?: string;
+        displayName?: string;
+        self?: string;
+      };
       currentUser = {
         accountId: me.accountId ?? 'judge-user',
         displayName: me.displayName ?? 'Atlassian Judge',
       };
+      if (typeof me.self === 'string') {
+        const siteMatch = /^https:\/\/[a-zA-Z0-9.-]+\.atlassian\.net/i.exec(me.self);
+        if (siteMatch) {
+          siteBaseUrl = siteMatch[0];
+        }
+      }
       jiraConnected = true;
     }
   } catch {
@@ -116,6 +129,7 @@ export async function fetchEnvironmentTargets(): Promise<AtlassianEnvironmentTar
     spaces,
     confluenceConnected,
     jiraConnected,
+    siteBaseUrl,
   };
 }
 
@@ -374,9 +388,13 @@ export async function syncLiveAtlassianNodes(
     if (!adfRaw) return snapshot;
 
     const hashed = hashSpecContent(adfRaw);
-    const nextNodes = snapshot.nodes.map((node) => {
+    const prevSpec = snapshot.nodes.find((n) => n.id === 'SPEC-BOLUS');
+    if (!prevSpec || prevSpec.liveHash === hashed.hash) {
+      return snapshot;
+    }
+
+    const rawNextNodes = snapshot.nodes.map((node) => {
       if (node.id !== 'SPEC-BOLUS') return node;
-      if (node.liveHash === hashed.hash) return node;
       return {
         ...node,
         version: page.version?.number ?? node.version + 1,
@@ -390,6 +408,12 @@ export async function syncLiveAtlassianNodes(
         lastModifiedAt: page.version?.createdAt ?? new Date().toISOString(),
       };
     });
+
+    const nextNodes = reconcileGraphNodeStatuses(
+      rawNextNodes,
+      snapshot.edges,
+      snapshot.releaseNodeId,
+    );
 
     return {
       ...snapshot,

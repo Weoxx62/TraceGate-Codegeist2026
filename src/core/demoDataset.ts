@@ -1,4 +1,5 @@
 import { appendLedgerEntry } from './auditLedger';
+import { reconcileGraphNodeStatuses } from './graphEngine';
 import { hashSpecContent } from './normalizer';
 import { DEFAULT_POLICY, evaluateReleasePolicy } from './policyEngine';
 import type {
@@ -549,7 +550,7 @@ export function updateNodeRawContent(
     };
   }
 
-  const nextNodes = snapshot.nodes.map((node) => {
+  const rawNextNodes = snapshot.nodes.map((node) => {
     if (node.id !== nodeId) return node;
     const isNowDrifted =
       node.approvedHash !== null && hashed.hash !== node.approvedHash;
@@ -564,6 +565,12 @@ export function updateNodeRawContent(
       lastModifiedAt: nowIso,
     };
   });
+
+  const nextNodes = reconcileGraphNodeStatuses(
+    rawNextNodes,
+    snapshot.edges,
+    snapshot.releaseNodeId,
+  );
 
   const nextEval = evaluateReleasePolicy(
     nextNodes,

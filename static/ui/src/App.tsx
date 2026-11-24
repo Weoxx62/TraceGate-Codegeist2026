@@ -16,6 +16,7 @@ import {
   type WorkspaceBundle,
 } from './bridge/forgeClient';
 import {
+  generateAuditCertificateHtml,
   generateAuditPackMarkdown,
   INDUSTRY_PRESETS,
   verifyLedgerChain,
@@ -361,13 +362,22 @@ export const App: React.FC = () => {
   const handleRunMcpTool = async (tool: McpSimulatorTool) => {
     setBusy(true);
     try {
+      const isRogueTest = tool === 'simulate-rogue-commit';
       const output = await runMcpSimulatorAction({
-        tool,
-        expectedFingerprint: evaluation.evidenceFingerprint,
+        tool: isRogueTest ? 'commit-governed-release' : tool,
+        expectedFingerprint: isRogueTest
+          ? '0000000000000000000000000000000000000000000000000000000000000000'
+          : evaluation.evidenceFingerprint,
       });
       setMcpOutput(JSON.stringify(output, null, 2));
       const refreshed = await fetchWorkspaceState();
       setBundle(refreshed);
+      if (isRogueTest) {
+        setBanner({
+          kind: 'error',
+          text: 'OWASP LLM06 Firewall: Unverified MCP commit rejected — forged/stale fingerprint blocked before Jira transition.',
+        });
+      }
     } finally {
       setBusy(false);
     }
@@ -400,6 +410,21 @@ export const App: React.FC = () => {
     const a = document.createElement('a');
     a.href = url;
     a.download = `TraceGate-Audit-Pack-${snapshot.projectKey}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadCertificateHtml = () => {
+    const html = generateAuditCertificateHtml(
+      snapshot,
+      evaluation,
+      bundle.ledgerVerification,
+    );
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `TraceGate-Compliance-Certificate-${snapshot.projectKey}.html`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -472,6 +497,15 @@ export const App: React.FC = () => {
       },
     },
     {
+      id: 'mcp-rogue',
+      label: 'MCP: Test Unverified Rogue Agent Commit (OWASP LLM06)',
+      group: 'rovo:mcp',
+      run: () => {
+        setActiveView('mcp');
+        void handleRunMcpTool('simulate-rogue-commit');
+      },
+    },
+    {
       id: 'fault-drift',
       label: `Fault Lab: Inject Spec Drift (${activePreset.nextTamperValue})`,
       group: 'Simulation',
@@ -500,6 +534,12 @@ export const App: React.FC = () => {
       label: 'Export Regulator Audit Evidence Pack (.md)',
       group: 'Audit Ledger',
       run: handleDownloadAuditPack,
+    },
+    {
+      id: 'export-cert',
+      label: 'Export Printable Compliance Certificate (.html)',
+      group: 'Audit Ledger',
+      run: handleDownloadCertificateHtml,
     },
     ...Object.values(INDUSTRY_PRESETS).map((preset) => ({
       id: `preset-${preset.id}`,
@@ -720,6 +760,7 @@ export const App: React.FC = () => {
                 onRunTamperTest={handleSimulateLedgerTamper}
                 onDismissTamperTest={() => setTamperTestResult(null)}
                 onDownloadAuditPack={handleDownloadAuditPack}
+                onDownloadCertificateHtml={handleDownloadCertificateHtml}
                 onExportToConfluence={() => void handleExportAuditPack()}
               />
             )}

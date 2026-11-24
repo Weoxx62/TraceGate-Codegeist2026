@@ -225,9 +225,22 @@ export function hashSpecContent(input: unknown): {
   };
 }
 
-function extractClauseKey(line: string, fallbackIndex: number): string {
-  const bracketMatch = line.match(/\[([A-Z0-9_-]+)\]/);
+function extractExplicitClauseKey(line: string): string | null {
+  const bracketMatch = line.match(/^\[([A-Za-z0-9_.-]+)\]/);
   if (bracketMatch) return bracketMatch[1];
+
+  const prefixedMatch = line.match(/^([A-Z][A-Z0-9_-]{2,32})\s*[:|]/);
+  if (prefixedMatch) return prefixedMatch[1];
+
+  return null;
+}
+
+function extractClauseKey(line: string, fallbackIndex: number): string {
+  const explicit = extractExplicitClauseKey(line);
+  if (explicit) return explicit;
+
+  const anyBracket = line.match(/\[([A-Z0-9_-]+)\]/);
+  if (anyBracket) return anyBracket[1];
 
   const colonIdx = line.indexOf(':');
   if (colonIdx > 0 && colonIdx < 48) {
@@ -242,9 +255,127 @@ function extractClauseKey(line: string, fallbackIndex: number): string {
   return `Line ${fallbackIndex + 1}`;
 }
 
+interface UnkeyedLine {
+  index: number;
+  text: string;
+}
+
+/**
+ * Aligns unkeyed prose/header lines via LCS so inserting a header or note line
+ * does not shift every subsequent line into a false MODIFIED diff.
+ */
+function diffUnkeyedLinesLcs(
+  approved: UnkeyedLine[],
+  live: UnkeyedLine[],
+  nodeId: string,
+  externalId: string,
+): ClauseDiff[] {
+  const m = approved.length;
+  const n = live.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    new Array<number>(n + 1).fill(0),
+  );
+
+  for (let i = m - 1; i >= 0; i--) {
+    for (let j = n - 1; j >= 0; j--) {
+      if (approved[i].text === live[j].text) {
+        dp[i][j] = dp[i + 1][j + 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+  }
+
+  const diffs: ClauseDiff[] = [];
+  let i = 0;
+  let j = 0;
+
+  while (i < m && j < n) {
+    if (approved[i].text === live[j].text) {
+      i++;
+      j++;
+      continue;
+    }
+
+    const removedChunk: UnkeyedLine[] = [];
+    const addedChunk: UnkeyedLine[] = [];
+    while (
+      (i < m || j < n) &&
+      !(i < m && j < n && approved[i].text === live[j].text)
+    ) {
+      if (i < m && (j >= n || dp[i + 1][j] >= dp[i][j + 1])) {
+        removedChunk.push(approved[i]);
+        i++;
+      } else if (j < n) {
+        addedChunk.push(live[j]);
+        j++;
+      }
+    }
+
+    const paired = Math.min(removedChunk.length, addedChunk.length);
+    for (let k = 0; k < paired; k++) {
+      diffs.push({
+        clauseKey: extractClauseKey(addedChunk[k].text, addedChunk[k].index),
+        changeType: 'MODIFIED',
+        approvedLine: removedChunk[k].text,
+        liveLine: addedChunk[k].text,
+        nodeId,
+        externalId,
+      });
+    }
+    for (let k = paired; k < addedChunk.length; k++) {
+      diffs.push({
+        clauseKey: extractClauseKey(addedChunk[k].text, addedChunk[k].index),
+        changeType: 'ADDED',
+        approvedLine: null,
+        liveLine: addedChunk[k].text,
+        nodeId,
+        externalId,
+      });
+    }
+    for (let k = paired; k < removedChunk.length; k++) {
+      diffs.push({
+        clauseKey: extractClauseKey(removedChunk[k].text, removedChunk[k].index),
+        changeType: 'REMOVED',
+        approvedLine: removedChunk[k].text,
+        liveLine: null,
+        nodeId,
+        externalId,
+      });
+    }
+  }
+
+  while (i < m) {
+    diffs.push({
+      clauseKey: extractClauseKey(approved[i].text, approved[i].index),
+      changeType: 'REMOVED',
+      approvedLine: approved[i].text,
+      liveLine: null,
+      nodeId,
+      externalId,
+    });
+    i++;
+  }
+
+  while (j < n) {
+    diffs.push({
+      clauseKey: extractClauseKey(live[j].text, live[j].index),
+      changeType: 'ADDED',
+      approvedLine: null,
+      liveLine: live[j].text,
+      nodeId,
+      externalId,
+    });
+    j++;
+  }
+
+  return diffs;
+}
+
 /**
  * Computes deterministic clause-level differences between an approved spec snapshot
- * and the current live normalized text.
+ * and the current live normalized text. Aligns explicit clause keys first so inserting
+ * or reordering lines never creates cascading positional false positives.
  */
 export function computeClauseDiffs(
   approvedText: string | null,
@@ -257,17 +388,51 @@ export function computeClauseDiffs(
   const approvedLines = normalizeSpecContent(approvedText).lines;
   const liveLines = normalizeSpecContent(liveText).lines;
 
-  const maxLen = Math.max(approvedLines.length, liveLines.length);
-  const diffs: ClauseDiff[] = [];
+  const approvedKeyMap = new Map<string, string>();
+  const liveKeyMap = new Map<string, string>();
+  const orderedKeys: string[] = [];
+  const seenKeys = new Set<string>();
 
-  for (let i = 0; i < maxLen; i++) {
-    const prev = approvedLines[i] ?? null;
-    const next = liveLines[i] ?? null;
+  const approvedUnkeyed: UnkeyedLine[] = [];
+  const liveUnkeyed: UnkeyedLine[] = [];
+
+  for (let i = 0; i < approvedLines.length; i++) {
+    const line = approvedLines[i];
+    const key = extractExplicitClauseKey(line);
+    if (key && !approvedKeyMap.has(key)) {
+      approvedKeyMap.set(key, line);
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        orderedKeys.push(key);
+      }
+    } else {
+      approvedUnkeyed.push({ index: i, text: line });
+    }
+  }
+
+  for (let i = 0; i < liveLines.length; i++) {
+    const line = liveLines[i];
+    const key = extractExplicitClauseKey(line);
+    if (key && !liveKeyMap.has(key)) {
+      liveKeyMap.set(key, line);
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        orderedKeys.push(key);
+      }
+    } else {
+      liveUnkeyed.push({ index: i, text: line });
+    }
+  }
+
+  const keyedDiffs: ClauseDiff[] = [];
+  for (const key of orderedKeys) {
+    const prev = approvedKeyMap.get(key) ?? null;
+    const next = liveKeyMap.get(key) ?? null;
     if (prev === next) continue;
 
     if (prev !== null && next !== null) {
-      diffs.push({
-        clauseKey: extractClauseKey(next, i),
+      keyedDiffs.push({
+        clauseKey: key,
         changeType: 'MODIFIED',
         approvedLine: prev,
         liveLine: next,
@@ -275,8 +440,8 @@ export function computeClauseDiffs(
         externalId,
       });
     } else if (prev === null && next !== null) {
-      diffs.push({
-        clauseKey: extractClauseKey(next, i),
+      keyedDiffs.push({
+        clauseKey: key,
         changeType: 'ADDED',
         approvedLine: null,
         liveLine: next,
@@ -284,8 +449,8 @@ export function computeClauseDiffs(
         externalId,
       });
     } else if (prev !== null && next === null) {
-      diffs.push({
-        clauseKey: extractClauseKey(prev, i),
+      keyedDiffs.push({
+        clauseKey: key,
         changeType: 'REMOVED',
         approvedLine: prev,
         liveLine: null,
@@ -295,5 +460,12 @@ export function computeClauseDiffs(
     }
   }
 
-  return diffs;
+  const unkeyedDiffs = diffUnkeyedLinesLcs(
+    approvedUnkeyed,
+    liveUnkeyed,
+    nodeId,
+    externalId,
+  );
+
+  return [...keyedDiffs, ...unkeyedDiffs];
 }

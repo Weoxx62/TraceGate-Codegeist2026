@@ -4,7 +4,8 @@ import { CheckIcon, CopyIcon, DownloadIcon, TerminalIcon } from './Icons';
 export type McpSimulatorTool =
   | 'evaluate-release-gate'
   | 'inspect-evidence-diff'
-  | 'commit-governed-release';
+  | 'commit-governed-release'
+  | 'simulate-rogue-commit';
 
 export const SKILL_MD_TEMPLATE = `---
 name: tracegate-mcp
@@ -83,6 +84,15 @@ export const McpAccessTab: React.FC<McpAccessTabProps> = ({
               onClick={() => onRunTool('commit-governed-release')}
             >
               commit-governed-release
+            </button>
+            <button
+              type="button"
+              className="tg-btn tg-btn-sm tg-btn-coral tg-mono"
+              disabled={busy}
+              title="Tests OWASP LLM06 Two-Phase Commit protection against forged or stale fingerprints"
+              onClick={() => onRunTool('simulate-rogue-commit')}
+            >
+              test-unverified-commit
             </button>
           </div>
 

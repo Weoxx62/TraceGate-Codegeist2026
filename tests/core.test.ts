@@ -312,4 +312,56 @@ describe('TraceGate Core Engine', () => {
     expect(markdown).toContain('VERIFIED INTACT');
     expect(markdown).toContain('CLAUSE-AEB-01');
   });
+
+  it('aligns clauses by key when header lines are inserted without cascading positional diffs', () => {
+    const approved = [
+      'CardioPulse Gen-4 Insulin Pump — Dosimetry Safety Specification v2.4',
+      '[CLAUSE-BOLUS-01] Max Single Bolus Limit: 10U',
+      '[CLAUSE-OCCLUSION-02] Downstream Occlusion Alarm Latency: <= 1200ms',
+      '[CLAUSE-FAILSAFE-03] Dual-MCU Watchdog Cutoff: Active',
+    ].join('\n');
+
+    const editedWithInsertedNote = [
+      'CardioPulse Gen-4 Insulin Pump — Dosimetry Safety Specification v2.4',
+      'Editorial Note: Clarified regulatory scope for EU MDR Annex I',
+      '[CLAUSE-BOLUS-01] Max Single Bolus Limit: 15U',
+      '[CLAUSE-OCCLUSION-02] Downstream Occlusion Alarm Latency: <= 1200ms',
+      '[CLAUSE-FAILSAFE-03] Dual-MCU Watchdog Cutoff: Active',
+    ].join('\n');
+
+    const diffs = computeClauseDiffs(
+      approved,
+      editedWithInsertedNote,
+      'SPEC-BOLUS',
+      'CONF-SOP-204',
+    );
+
+    const bolusDiff = diffs.find((d) => d.clauseKey === 'CLAUSE-BOLUS-01');
+    expect(bolusDiff).toBeDefined();
+    expect(bolusDiff?.changeType).toBe('MODIFIED');
+    expect(bolusDiff?.approvedLine).toContain('10U');
+    expect(bolusDiff?.liveLine).toContain('15U');
+
+    // Unchanged clauses below must NOT appear as drifted due to index shift
+    expect(diffs.some((d) => d.clauseKey === 'CLAUSE-OCCLUSION-02')).toBe(false);
+    expect(diffs.some((d) => d.clauseKey === 'CLAUSE-FAILSAFE-03')).toBe(false);
+    expect(diffs.some((d) => d.changeType === 'ADDED')).toBe(true);
+  });
+
+  it('reconciles downstream node statuses and blocks RELEASED nodes when post-release drift occurs', () => {
+    const clean = buildIndustryDemoSnapshot('MEDTECH_IEC62304', 'CERTIFIED');
+    const releasedNodes = clean.nodes.map((n) =>
+      n.id === 'REL-240' ? { ...n, status: 'RELEASED' as const } : n,
+    );
+    const releasedSnapshot = { ...clean, nodes: releasedNodes };
+
+    const tampered = applySpecTampering(releasedSnapshot, '22U', DEMO_USERS.AUTHOR);
+    const req101 = tampered.nodes.find((n) => n.id === 'REQ-101');
+    const test401 = tampered.nodes.find((n) => n.id === 'TEST-401');
+    const rel240 = tampered.nodes.find((n) => n.id === 'REL-240');
+
+    expect(req101?.status).toBe('SUSPECT');
+    expect(test401?.status).toBe('SUSPECT');
+    expect(rel240?.status).toBe('BLOCKED');
+  });
 });

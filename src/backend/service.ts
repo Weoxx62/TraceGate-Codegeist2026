@@ -46,8 +46,11 @@ export async function getWorkspaceBundle(
   includeEnvironment = false,
 ): Promise<WorkspaceBundle> {
   let snapshot = await loadSnapshot();
-  snapshot = await syncLiveAtlassianNodes(snapshot);
-  await saveSnapshot(snapshot);
+  const syncedSnapshot = await syncLiveAtlassianNodes(snapshot);
+  if (syncedSnapshot !== snapshot) {
+    snapshot = syncedSnapshot;
+    await saveSnapshot(snapshot);
+  }
 
   let env: AtlassianEnvironmentTargets | undefined;
   let storageDiag: StorageDiagnostics | undefined;
@@ -111,8 +114,27 @@ export async function seedMedTechDemo(params: {
 
     const nextNodes = snapshot.nodes.map((node) => {
       const jiraKey = seeded.seededJiraIssueKeys[node.id];
-      if (!jiraKey) return node;
-      return { ...node, externalId: jiraKey };
+      if (jiraKey) {
+        return {
+          ...node,
+          externalId: jiraKey,
+          url: env.siteBaseUrl
+            ? `${env.siteBaseUrl}/browse/${encodeURIComponent(jiraKey)}`
+            : node.url,
+        };
+      }
+      if (
+        node.id === 'SPEC-BOLUS' &&
+        seeded.seededConfluencePageId &&
+        chosenSpace?.key &&
+        env.siteBaseUrl
+      ) {
+        return {
+          ...node,
+          url: `${env.siteBaseUrl}/wiki/spaces/${encodeURIComponent(chosenSpace.key)}/pages/${encodeURIComponent(seeded.seededConfluencePageId)}`,
+        };
+      }
+      return node;
     });
 
     snapshot = {
