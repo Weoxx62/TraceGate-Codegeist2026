@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type {
   EvaluationResult,
   PolicyFinding,
@@ -55,6 +55,7 @@ export const PolicyChecksPane: React.FC<PolicyChecksPaneProps> = ({
   onSelectNode,
   onCreateRemediation,
 }) => {
+  const [expandedCode, setExpandedCode] = useState<PolicyRuleCode | null>(null);
   const allFindings: PolicyFinding[] = [
     ...evaluation.blockers,
     ...evaluation.warnings,
@@ -68,7 +69,7 @@ export const PolicyChecksPane: React.FC<PolicyChecksPaneProps> = ({
           <span className="tg-card-sub" style={{ marginLeft: 8 }}>
             {evaluation.blockers.length === 0
               ? 'All 5 checks passing'
-              : `${evaluation.blockers.length} blocking check${evaluation.blockers.length === 1 ? '' : 's'}`}
+              : `${evaluation.blockers.length} blocking check${evaluation.blockers.length === 1 ? '' : 's'} · click a row to expand`}
           </span>
         </div>
 
@@ -88,46 +89,101 @@ export const PolicyChecksPane: React.FC<PolicyChecksPaneProps> = ({
         {CONTROLS.map((ctrl) => {
           const matches = allFindings.filter((f) => f.code === ctrl.code);
           const passed = matches.length === 0;
+          const expanded = !passed && expandedCode === ctrl.code;
           const uniqueNodes = Array.from(
             new Map(matches.map((m) => [m.nodeId, m.externalId])).entries(),
           );
 
           return (
-            <div key={ctrl.code} className="tg-check-row">
-              <div className="tg-check-left">
-                <span
-                  style={{
-                    color: passed ? 'var(--emerald)' : 'var(--coral)',
-                    display: 'inline-flex',
-                    flexShrink: 0,
-                  }}
-                  aria-hidden="true"
+            <div key={ctrl.code} className="tg-check-group">
+              <div
+                className={`tg-check-row ${!passed ? 'tg-check-row-interactive' : ''}`}
+                role={!passed ? 'button' : undefined}
+                tabIndex={!passed ? 0 : undefined}
+                aria-expanded={!passed ? expanded : undefined}
+                onClick={() => {
+                  if (!passed) {
+                    setExpandedCode((prev) =>
+                      prev === ctrl.code ? null : ctrl.code,
+                    );
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (!passed && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    setExpandedCode((prev) =>
+                      prev === ctrl.code ? null : ctrl.code,
+                    );
+                  }
+                }}
+              >
+                <div className="tg-check-left">
+                  <span
+                    style={{
+                      color: passed ? 'var(--emerald)' : 'var(--coral)',
+                      display: 'inline-flex',
+                      flexShrink: 0,
+                    }}
+                    aria-hidden="true"
+                  >
+                    {passed ? <CheckIcon size={14} /> : <CrossIcon size={14} />}
+                  </span>
+                  <span className="tg-check-name">{ctrl.name}</span>
+                  <span className="tg-check-detail">
+                    {passed ? ctrl.passLine : matches[0].message}
+                  </span>
+                </div>
+
+                <div
+                  className="tg-check-chips"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  {passed ? <CheckIcon size={14} /> : <CrossIcon size={14} />}
-                </span>
-                <span className="tg-check-name">{ctrl.name}</span>
-                <span className="tg-check-detail">
-                  {passed ? ctrl.passLine : matches[0].message}
-                </span>
+                  {uniqueNodes.slice(0, 3).map(([nodeId, externalId]) => (
+                    <button
+                      key={nodeId}
+                      type="button"
+                      className={`tg-chip ${selectedNodeId === nodeId ? 'tg-chip-active' : ''}`}
+                      onClick={() => onSelectNode(nodeId)}
+                    >
+                      {externalId}
+                    </button>
+                  ))}
+                  <span
+                    className={`tg-pill ${passed ? 'tg-pill-emerald' : 'tg-pill-coral'}`}
+                  >
+                    {passed
+                      ? 'Pass'
+                      : `${matches.length} issue${matches.length === 1 ? '' : 's'} ${expanded ? '▾' : '▸'}`}
+                  </span>
+                </div>
               </div>
 
-              <div className="tg-check-chips">
-                {uniqueNodes.slice(0, 3).map(([nodeId, externalId]) => (
-                  <button
-                    key={nodeId}
-                    type="button"
-                    className={`tg-chip ${selectedNodeId === nodeId ? 'tg-chip-active' : ''}`}
-                    onClick={() => onSelectNode(nodeId)}
-                  >
-                    {externalId}
-                  </button>
-                ))}
-                <span
-                  className={`tg-pill ${passed ? 'tg-pill-emerald' : 'tg-pill-coral'}`}
-                >
-                  {passed ? 'Pass' : `${matches.length} issue${matches.length === 1 ? '' : 's'}`}
-                </span>
-              </div>
+              {expanded && (
+                <div className="tg-check-expanded">
+                  {matches.map((finding, idx) => (
+                    <div
+                      key={`${finding.nodeId}-${idx}`}
+                      className="tg-check-finding"
+                    >
+                      <div className="tg-check-finding-head">
+                        <button
+                          type="button"
+                          className={`tg-chip ${selectedNodeId === finding.nodeId ? 'tg-chip-active' : ''}`}
+                          onClick={() => onSelectNode(finding.nodeId)}
+                        >
+                          {finding.externalId}
+                        </button>
+                        <span className="tg-check-finding-msg">
+                          {finding.message}
+                        </span>
+                      </div>
+                      <div className="tg-check-finding-rem">
+                        Remediation: {finding.remediation}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}

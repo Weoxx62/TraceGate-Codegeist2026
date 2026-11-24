@@ -12,37 +12,39 @@ interface NodeSlot {
 }
 
 const NODE_WIDTH = 190;
-const NODE_HEIGHT = 54;
+const NODE_HEIGHT = 60;
 
 const NODE_POSITIONS: Record<string, NodeSlot> = {
-  'SPEC-BOLUS': { x: 8, y: 36 },
-  'SPEC-ALARM': { x: 8, y: 148 },
-  'REQ-101': { x: 232, y: 26 },
-  'FMEA-301': { x: 232, y: 94 },
-  'REQ-102': { x: 232, y: 162 },
-  'TEST-401': { x: 456, y: 26 },
-  'TEST-403': { x: 456, y: 94 },
-  'TEST-402': { x: 456, y: 162 },
-  'FW-240': { x: 680, y: 94 },
-  'REL-240': { x: 904, y: 94 },
+  'SPEC-BOLUS': { x: 8, y: 38 },
+  'SPEC-ALARM': { x: 8, y: 158 },
+  'REQ-101': { x: 232, y: 28 },
+  'FMEA-301': { x: 232, y: 98 },
+  'REQ-102': { x: 232, y: 168 },
+  'TEST-401': { x: 456, y: 28 },
+  'TEST-403': { x: 456, y: 98 },
+  'TEST-402': { x: 456, y: 168 },
+  'FW-240': { x: 680, y: 98 },
+  'REL-240': { x: 904, y: 98 },
 };
 
 const STAGE_LABELS = [
-  { x: 10, label: 'Specification' },
-  { x: 234, label: 'Requirements & Risk' },
-  { x: 458, label: 'Verification' },
-  { x: 682, label: 'Artifact' },
-  { x: 906, label: 'Release Gate' },
+  { x: 10, label: '01 · SPECIFICATION' },
+  { x: 234, label: '02 · WORK & RISK' },
+  { x: 458, label: '03 · VERIFICATION' },
+  { x: 682, label: '04 · ARTIFACT' },
+  { x: 906, label: '05 · RELEASE GATE' },
 ];
 
-function formatShortTitle(title: string, max = 25): string {
+const COLUMN_HAIRLINES = [215, 439, 663, 887];
+
+function formatShortTitle(title: string, max = 24): string {
   if (title.length <= max) return title;
   const slice = title.slice(0, max - 1);
   const lastSpace = slice.lastIndexOf(' ');
-  return `${(lastSpace > 12 ? slice.slice(0, lastSpace) : slice).trim()}…`;
+  return `${(lastSpace > 11 ? slice.slice(0, lastSpace) : slice).trim()}…`;
 }
 
-function formatShortId(externalId: string, max = 14): string {
+function formatShortId(externalId: string, max = 12): string {
   if (externalId.length <= max) return externalId;
   return `${externalId.slice(0, max - 1)}…`;
 }
@@ -50,6 +52,7 @@ function formatShortId(externalId: string, max = 14): string {
 interface NodeStyle {
   dot: string;
   labelColor: string;
+  borderColor: string;
   statusWord: string;
 }
 
@@ -58,18 +61,43 @@ function getNodeStyle(
   evaluation: EvaluationResult,
 ): NodeStyle {
   if (evaluation.driftedRootIds.includes(node.id)) {
-    return { dot: 'var(--coral)', labelColor: 'var(--coral)', statusWord: 'Drifted' };
+    return {
+      dot: 'var(--coral)',
+      labelColor: 'var(--coral)',
+      borderColor: 'var(--coral-border)',
+      statusWord: 'Drifted',
+    };
   }
   if (node.id === evaluation.releaseId && evaluation.verdict === 'BLOCK') {
-    return { dot: 'var(--coral)', labelColor: 'var(--coral)', statusWord: 'Blocked' };
+    return {
+      dot: 'var(--coral)',
+      labelColor: 'var(--coral)',
+      borderColor: 'var(--coral-border)',
+      statusWord: 'Blocked',
+    };
   }
   if (evaluation.suspectNodeIds.includes(node.id)) {
-    return { dot: 'var(--amber)', labelColor: 'var(--amber)', statusWord: 'Suspect' };
+    return {
+      dot: 'var(--amber)',
+      labelColor: 'var(--amber)',
+      borderColor: 'var(--amber-border)',
+      statusWord: 'Suspect',
+    };
   }
   if (node.status === 'RELEASED') {
-    return { dot: 'var(--emerald)', labelColor: 'var(--emerald)', statusWord: 'Released' };
+    return {
+      dot: 'var(--emerald)',
+      labelColor: 'var(--emerald)',
+      borderColor: 'var(--emerald-border)',
+      statusWord: 'Released',
+    };
   }
-  return { dot: 'var(--emerald)', labelColor: 'var(--emerald)', statusWord: 'Verified' };
+  return {
+    dot: 'var(--emerald)',
+    labelColor: 'var(--emerald)',
+    borderColor: 'var(--border)',
+    statusWord: 'Verified',
+  };
 }
 
 export const EvidenceGraphCanvas: React.FC<{
@@ -98,7 +126,7 @@ export const EvidenceGraphCanvas: React.FC<{
 
   return (
     <svg
-      viewBox="0 0 1102 224"
+      viewBox="0 0 1102 246"
       style={{ width: '100%', height: 'auto', display: 'block' }}
       role="region"
       aria-label="Evidence Lineage Graph"
@@ -128,13 +156,28 @@ export const EvidenceGraphCanvas: React.FC<{
         </marker>
       </defs>
 
+      {COLUMN_HAIRLINES.map((x) => (
+        <line
+          key={x}
+          x1={x}
+          y1={8}
+          x2={x}
+          y2={234}
+          stroke="var(--border)"
+          strokeDasharray="3 3"
+          opacity={0.55}
+        />
+      ))}
+
       {STAGE_LABELS.map((stage) => (
         <text
           key={stage.label}
           x={stage.x}
-          y={14}
-          fontSize="11"
-          fontWeight="500"
+          y={16}
+          fontSize="10"
+          fontWeight="600"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          letterSpacing="0.04em"
           fill="var(--ink-muted)"
         >
           {stage.label}
@@ -169,7 +212,7 @@ export const EvidenceGraphCanvas: React.FC<{
             strokeWidth={isImpacted ? 1.8 : 1.3}
             strokeDasharray={isImpacted ? '4 3' : undefined}
             style={{
-              opacity: dimmed ? 0.18 : 1,
+              opacity: dimmed ? 0.16 : 1,
               transition: 'opacity 150ms ease',
             }}
             markerEnd={
@@ -194,6 +237,10 @@ export const EvidenceGraphCanvas: React.FC<{
             ? `Hop +${impactInfo.depth} · ${style.statusWord}`
             : style.statusWord;
 
+        const metaText = node.rpn
+          ? `RPN ${node.rpn.severity * node.rpn.occurrence * node.rpn.detection} · ${node.liveHash.slice(0, 7)}`
+          : `${node.sourceProduct} · v${node.version} · ${node.liveHash.slice(0, 7)}`;
+
         return (
           <g
             key={node.id}
@@ -215,7 +262,7 @@ export const EvidenceGraphCanvas: React.FC<{
             }}
             style={{
               cursor: 'pointer',
-              opacity: dimmed ? 0.28 : 1,
+              opacity: dimmed ? 0.25 : 1,
               transition: 'opacity 150ms ease',
             }}
           >
@@ -224,13 +271,18 @@ export const EvidenceGraphCanvas: React.FC<{
               height={NODE_HEIGHT}
               rx={8}
               fill={isSelected ? 'var(--svg-node-selected)' : 'var(--svg-node-bg)'}
-              stroke={isSelected || isHovered ? 'var(--accent)' : 'var(--border)'}
+              stroke={
+                isSelected || isHovered
+                  ? 'var(--accent)'
+                  : style.borderColor
+              }
               strokeWidth={isSelected ? 1.6 : isHovered ? 1.3 : 1}
             />
-            <circle cx={15} cy={19} r={3.5} fill={style.dot} />
+            <rect x={1} y={10} width={3} height={40} rx={1.5} fill={style.dot} />
+            <circle cx={15} cy={17} r={3.2} fill={style.dot} />
             <text
-              x={25}
-              y={22.5}
+              x={24}
+              y={20.5}
               fontSize="10.5"
               fontWeight="600"
               fontFamily="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
@@ -239,8 +291,8 @@ export const EvidenceGraphCanvas: React.FC<{
               {formatShortId(node.externalId, 12)}
             </text>
             <text
-              x={NODE_WIDTH - 11}
-              y={22.5}
+              x={NODE_WIDTH - 10}
+              y={20.5}
               textAnchor="end"
               fontSize="10"
               fontWeight="600"
@@ -250,12 +302,21 @@ export const EvidenceGraphCanvas: React.FC<{
             </text>
             <text
               x={12}
-              y={41}
-              fontSize="12"
+              y={36.5}
+              fontSize="11.5"
               fontWeight="500"
               fill="var(--ink-primary)"
             >
               {formatShortTitle(node.title, 24)}
+            </text>
+            <text
+              x={12}
+              y={52}
+              fontSize="9.5"
+              fontFamily="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+              fill="var(--ink-muted)"
+            >
+              {metaText}
             </text>
           </g>
         );

@@ -1121,3 +1121,293 @@ textarea:focus-visible,
   font-size: 11px;
   color: var(--ink-muted);
 }
+
+/* Status Confidence Meter & Copyable Fingerprint */
+.tg-status-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.tg-meter {
+  width: 56px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.tg-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 220ms ease;
+}
+
+.tg-fp-chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--ink-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tg-fp-chip:hover {
+  border-color: var(--border-strong);
+  color: var(--ink-primary);
+}
+
+/* Interactive Control Row Expansion */
+.tg-check-group {
+  border-bottom: 1px solid var(--border);
+}
+
+.tg-check-group:last-child {
+  border-bottom: none;
+}
+
+.tg-check-group .tg-check-row {
+  border-bottom: none;
+}
+
+.tg-check-row-interactive {
+  cursor: pointer;
+}
+
+.tg-check-row-interactive:hover {
+  background: var(--bg-hover);
+}
+
+.tg-check-expanded {
+  padding: 8px 14px 12px 38px;
+  background: var(--bg-canvas);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tg-check-finding {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tg-check-finding-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-primary);
+}
+
+.tg-check-finding-msg {
+  line-height: 1.45;
+}
+
+.tg-check-finding-rem {
+  font-size: 11.5px;
+  color: var(--ink-secondary);
+  padding-left: 2px;
+}
+
+/* 2x2 MCP Tool Grid & Rovo Preview */
+.tg-mcp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .tg-mcp-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.tg-mcp-btn {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 9px 11px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-canvas);
+  color: var(--ink-primary);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.tg-mcp-btn:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+}
+
+.tg-mcp-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tg-mcp-btn-primary {
+  border-color: rgba(94, 106, 210, 0.45);
+  background: var(--accent-soft);
+}
+
+.tg-mcp-btn-emerald {
+  border-color: var(--emerald-border);
+  background: var(--emerald-soft);
+}
+
+.tg-mcp-btn-coral {
+  border-color: var(--coral-border);
+  background: var(--coral-soft);
+}
+
+.tg-mcp-verb {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+}
+
+.tg-rovo-chip {
+  appearance: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-canvas);
+  color: var(--ink-secondary);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tg-rovo-chip:hover,
+.tg-rovo-chip-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink-primary);
+}
+
+.tg-rovo-card {
+  padding: 12px 14px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-canvas);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tg-rovo-q {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-primary);
+}
+
+.tg-rovo-tool {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.tg-rovo-a {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+}
+
+/* Inspector Node Stepper */
+.tg-stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-canvas);
+  height: 22px;
+}
+
+.tg-step-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--ink-secondary);
+  font-size: 13px;
+  line-height: 1;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tg-step-btn:hover {
+  color: var(--ink-primary);
+  background: var(--bg-hover);
+}
+
+/* Printable Certificate Modal */
+.tg-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.58);
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.tg-cert-modal {
+  width: 820px;
+  max-width: 100%;
+  max-height: 86vh;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-drawer);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tg-cert-head {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.tg-cert-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tg-cert-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}

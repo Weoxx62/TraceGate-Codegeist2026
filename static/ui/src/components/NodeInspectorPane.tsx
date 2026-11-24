@@ -11,6 +11,9 @@ interface NodeInspectorPaneProps {
   clauseDiffs: ClauseDiff[];
   draftContent: string;
   busy: boolean;
+  nodeIndex?: number;
+  totalNodes?: number;
+  onStepNode?: (delta: -1 | 1) => void;
   onDraftChange: (value: string) => void;
   onTestCosmeticEdit: () => void;
   onSaveEdit: () => void;
@@ -21,6 +24,9 @@ export const NodeInspectorPane: React.FC<NodeInspectorPaneProps> = ({
   clauseDiffs,
   draftContent,
   busy,
+  nodeIndex,
+  totalNodes,
+  onStepNode,
   onDraftChange,
   onTestCosmeticEdit,
   onSaveEdit,
@@ -66,7 +72,34 @@ export const NodeInspectorPane: React.FC<NodeInspectorPaneProps> = ({
           <span className="tg-mono" style={{ fontSize: 12, color: 'var(--ink-secondary)' }}>
             {node.externalId} · {node.sourceProduct}
           </span>
-          <span className={`tg-pill ${statusPillClass}`}>{node.status}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {onStepNode && typeof nodeIndex === 'number' && typeof totalNodes === 'number' && (
+              <div className="tg-stepper" aria-label="Step between evidence nodes">
+                <button
+                  type="button"
+                  className="tg-step-btn"
+                  onClick={() => onStepNode(-1)}
+                  aria-label="Previous node"
+                  title="Previous node ([)"
+                >
+                  ‹
+                </button>
+                <span className="tg-mono" style={{ fontSize: 10.5, color: 'var(--ink-muted)', padding: '0 4px' }}>
+                  {nodeIndex + 1}/{totalNodes}
+                </span>
+                <button
+                  type="button"
+                  className="tg-step-btn"
+                  onClick={() => onStepNode(1)}
+                  aria-label="Next node"
+                  title="Next node (])"
+                >
+                  ›
+                </button>
+              </div>
+            )}
+            <span className={`tg-pill ${statusPillClass}`}>{node.status}</span>
+          </div>
         </div>
         <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink-primary)' }}>
           {node.title}

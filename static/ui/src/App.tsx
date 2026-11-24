@@ -24,6 +24,7 @@ import {
   type LedgerEntry,
 } from '../../../src/core/index';
 import { AuditLedgerTab } from './components/AuditLedgerTab';
+import { CertificateModal } from './components/CertificateModal';
 import { CommandPalette, type CommandItem } from './components/CommandPalette';
 import { ConfluenceBylineView } from './components/ConfluenceBylineView';
 import { EvidenceGraphCanvas } from './components/EvidenceGraphCanvas';
@@ -44,6 +45,8 @@ export const App: React.FC = () => {
   const [previewMode, setPreviewMode] = useState<'studio' | 'issue-panel' | 'confluence-byline'>('studio');
   const [faultLabOpen, setFaultLabOpen] = useState(false);
   const [cmdkOpen, setCmdkOpen] = useState(false);
+  const [certModalOpen, setCertModalOpen] = useState(false);
+  const [copiedFp, setCopiedFp] = useState(false);
   const [bundle, setBundle] = useState<WorkspaceBundle | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string>('SPEC-BOLUS');
   const [activeView, setActiveView] = useState<StudioView>('graph');
@@ -75,6 +78,7 @@ export const App: React.FC = () => {
         const drawerParam = params.get('drawer');
         const themeParam = params.get('theme');
         const cmdkParam = params.get('cmdk');
+        const modalParam = params.get('modal');
 
         if (themeParam === 'light' || themeParam === 'dark') {
           setTheme(themeParam);
@@ -87,6 +91,9 @@ export const App: React.FC = () => {
         }
         if (cmdkParam === '1') {
           setCmdkOpen(true);
+        }
+        if (modalParam === 'certificate') {
+          setCertModalOpen(true);
         }
         if (tabParam === 'graph' || tabParam === 'mcp' || tabParam === 'ledger') {
           setActiveView(tabParam);
@@ -148,11 +155,33 @@ export const App: React.FC = () => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setCmdkOpen((open) => !open);
+        return;
+      }
+
+      const targetTag = (e.target as HTMLElement | null)?.tagName;
+      if (
+        targetTag === 'INPUT' ||
+        targetTag === 'TEXTAREA' ||
+        targetTag === 'SELECT'
+      ) {
+        return;
+      }
+
+      if ((e.key === '[' || e.key === ']') && bundle && bundle.snapshot.nodes.length > 0) {
+        e.preventDefault();
+        const nodes = bundle.snapshot.nodes;
+        const idx = Math.max(
+          0,
+          nodes.findIndex((n) => n.id === selectedNodeId),
+        );
+        const delta = e.key === ']' ? 1 : -1;
+        const nextIdx = (idx + delta + nodes.length) % nodes.length;
+        setSelectedNodeId(nodes[nextIdx].id);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [bundle, selectedNodeId]);
 
   const selectedNodeForDraft = bundle
     ? (bundle.snapshot.nodes.find((n) => n.id === selectedNodeId) ??
@@ -178,8 +207,28 @@ export const App: React.FC = () => {
   }
 
   const { snapshot, evaluation } = bundle;
-  const selectedNode =
-    snapshot.nodes.find((n) => n.id === selectedNodeId) ?? snapshot.nodes[0];
+  const selectedNodeIndex = Math.max(
+    0,
+    snapshot.nodes.findIndex((n) => n.id === selectedNodeId),
+  );
+  const selectedNode = snapshot.nodes[selectedNodeIndex] ?? snapshot.nodes[0];
+
+  const handleStepNode = (delta: -1 | 1) => {
+    if (snapshot.nodes.length === 0) return;
+    const nextIdx =
+      (selectedNodeIndex + delta + snapshot.nodes.length) % snapshot.nodes.length;
+    setSelectedNodeId(snapshot.nodes[nextIdx].id);
+  };
+
+  const handleCopyFingerprint = async () => {
+    try {
+      await navigator.clipboard.writeText(evaluation.evidenceFingerprint);
+      setCopiedFp(true);
+      setTimeout(() => setCopiedFp(false), 1500);
+    } catch {
+      setCopiedFp(false);
+    }
+  };
   const activePreset =
     INDUSTRY_PRESETS[snapshot.industryPreset ?? selectedPreset] ??
     INDUSTRY_PRESETS.MEDTECH_IEC62304;
@@ -541,6 +590,12 @@ export const App: React.FC = () => {
       group: 'Audit Ledger',
       run: handleDownloadCertificateHtml,
     },
+    {
+      id: 'preview-cert',
+      label: 'View Compliance Certificate Modal',
+      group: 'Audit Ledger',
+      run: () => setCertModalOpen(true),
+    },
     ...Object.values(INDUSTRY_PRESETS).map((preset) => ({
       id: `preset-${preset.id}`,
       label: `Switch Baseline: ${preset.label}`,
@@ -705,9 +760,43 @@ export const App: React.FC = () => {
                     <span className="tg-status-msg">{statusSummaryText}</span>
                   </div>
 
-                  <span className="tg-status-meta">
-                    {evaluation.blastRadius.length} impacted · {evaluation.fmeaExposureTotal} RPN
-                  </span>
+                  <div className="tg-status-right">
+                    <div
+                      className="tg-meter"
+                      title={`Ship-Confidence: ${evaluation.confidenceScore}%`}
+                      aria-label={`Ship-Confidence ${evaluation.confidenceScore}%`}
+                    >
+                      <div
+                        className="tg-meter-fill"
+                        style={{
+                          width: `${Math.max(4, evaluation.confidenceScore)}%`,
+                          background: isAllow ? 'var(--emerald)' : 'var(--coral)',
+                        }}
+                      />
+                    </div>
+                    <span className="tg-status-meta">
+                      {evaluation.blastRadius.length} impacted · {evaluation.fmeaExposureTotal} RPN
+                    </span>
+                    <button
+                      type="button"
+                      className="tg-fp-chip"
+                      onClick={() => void handleCopyFingerprint()}
+                      title="Copy live SHA-256 Phase-1 evidence fingerprint"
+                    >
+                      {copiedFp
+                        ? 'Copied SHA-256'
+                        : `fp: ${evaluation.evidenceFingerprint.slice(0, 8)}…`}
+                    </button>
+                    {isAllow && (
+                      <button
+                        type="button"
+                        className="tg-btn tg-btn-sm"
+                        onClick={() => setCertModalOpen(true)}
+                      >
+                        View Certificate
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <section className="tg-card" aria-label="Evidence Traceability Lineage">
@@ -744,6 +833,7 @@ export const App: React.FC = () => {
 
             {activeView === 'mcp' && (
               <McpAccessTab
+                bundle={bundle}
                 mcpOutput={mcpOutput}
                 busy={busy}
                 onRunTool={(tool) => void handleRunMcpTool(tool)}
@@ -759,6 +849,7 @@ export const App: React.FC = () => {
                 busy={busy}
                 onRunTamperTest={handleSimulateLedgerTamper}
                 onDismissTamperTest={() => setTamperTestResult(null)}
+                onPreviewCertificate={() => setCertModalOpen(true)}
                 onDownloadAuditPack={handleDownloadAuditPack}
                 onDownloadCertificateHtml={handleDownloadCertificateHtml}
                 onExportToConfluence={() => void handleExportAuditPack()}
@@ -772,6 +863,9 @@ export const App: React.FC = () => {
               clauseDiffs={evaluation.clauseDiffs}
               draftContent={draftNodeContent}
               busy={busy}
+              nodeIndex={selectedNodeIndex}
+              totalNodes={snapshot.nodes.length}
+              onStepNode={handleStepNode}
               onDraftChange={setDraftNodeContent}
               onTestCosmeticEdit={() => void handleTestCosmeticEdit()}
               onSaveEdit={() => void handleSaveLiveNodeEdit()}
@@ -814,6 +908,14 @@ export const App: React.FC = () => {
         open={cmdkOpen}
         commands={commandItems}
         onClose={() => setCmdkOpen(false)}
+      />
+
+      <CertificateModal
+        open={certModalOpen}
+        bundle={bundle}
+        onClose={() => setCertModalOpen(false)}
+        onDownloadHtml={handleDownloadCertificateHtml}
+        onDownloadMd={handleDownloadAuditPack}
       />
     </div>
   );

@@ -12,6 +12,7 @@ interface AuditLedgerTabProps {
   busy: boolean;
   onRunTamperTest: () => void;
   onDismissTamperTest: () => void;
+  onPreviewCertificate: () => void;
   onDownloadAuditPack: () => void;
   onDownloadCertificateHtml: () => void;
   onExportToConfluence: () => void;
@@ -24,6 +25,7 @@ export const AuditLedgerTab: React.FC<AuditLedgerTabProps> = ({
   busy,
   onRunTamperTest,
   onDismissTamperTest,
+  onPreviewCertificate,
   onDownloadAuditPack,
   onDownloadCertificateHtml,
   onExportToConfluence,
@@ -49,6 +51,13 @@ export const AuditLedgerTab: React.FC<AuditLedgerTabProps> = ({
             onClick={onRunTamperTest}
           >
             Verify Integrity
+          </button>
+          <button
+            type="button"
+            className="tg-btn tg-btn-sm"
+            onClick={onPreviewCertificate}
+          >
+            Preview Certificate
           </button>
           <button
             type="button"
