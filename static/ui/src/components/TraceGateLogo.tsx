@@ -1,0 +1,23 @@
+import React from 'react';
+
+export const TraceGateLogo: React.FC<{ size?: number }> = ({ size = 24 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 28 28"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-label="TraceGate"
+  >
+    <rect width="28" height="28" rx="6" fill="#0C66E4" />
+    <circle cx="8.5" cy="9" r="1.9" fill="#FFFFFF" />
+    <circle cx="8.5" cy="19" r="1.9" fill="#FFFFFF" />
+    <circle cx="19.5" cy="14" r="2.1" fill="#34D399" />
+    <path
+      d="M10.4 9.3C13.8 9.3 14.5 14 17.4 14M10.4 18.7C13.8 18.7 14.5 14 17.4 14"
+      stroke="#FFFFFF"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    />
+  </svg>
+);

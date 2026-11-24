@@ -1,0 +1,186 @@
+app:
+  id: ari:cloud:ecosystem::app/22b1d3e6-dd70-464e-9fad-f148139c4479
+  description: Deterministic regulatory traceability, cryptographic drift
+    detection, and two-phase release governance.
+  runtime:
+    name: nodejs22.x
+  compatibility:
+    jira:
+      required: true
+    confluence:
+      required: false
+
+modules:
+  jira:globalPage:
+    - key: tracegate-command-center
+      title: TraceGate
+      resource: main-ui
+      resolver:
+        function: resolver-fn
+      layout: native
+
+  jira:issuePanel:
+    - key: tracegate-issue-gate
+      title: TraceGate Evidence Gate
+      icon: resource:main-ui;tracegate-icon.svg
+      resource: main-ui
+      resolver:
+        function: resolver-fn
+      viewportSize: medium
+
+  jira:workflowValidator:
+    - key: tracegate-release-validator
+      name: TraceGate Evidence Release Gate
+      description: Blocks Jira transitions when upstream specs drifted or QA
+        verification is incomplete.
+      function: workflow-validator-fn
+
+  rovo:skill:
+    - key: tracegate-governance-skill
+      source:
+        dir: skills/tracegate-mcp
+      dependencies:
+        tools:
+          - evaluate-release-gate
+          - inspect-evidence-diff
+          - commit-governed-release
+          - create-remediation-tasks
+
+  rovo:mcp:
+    - key: tracegate-mcp-server
+      name: TraceGate Governance MCP
+      tools:
+        - evaluate-release-gate
+        - inspect-evidence-diff
+        - commit-governed-release
+        - create-remediation-tasks
+
+  rovo:agent:
+    - key: tracegate-compliance-auditor
+      name: TraceGate Compliance Auditor
+      description: Inspects live regulatory traceability graphs, explains SHA-256 spec
+        drift, enforces Segregation of Duties, and runs governed release checks.
+      prompt: >
+        You are the TraceGate Compliance Auditor. You MUST never invent
+        compliance status or guess whether a release is safe. Always invoke
+        evaluate-release-gate or inspect-evidence-diff first, cite exact
+        issue/spec IDs and clause diffs, and never call commit-governed-release
+        unless evaluate-release-gate returned ALLOW.
+      conversationStarters:
+        - Check if the active regulated release is safe to ship
+        - What specification drifted and which tests are suspect?
+        - Create remediation tasks for all current blockers
+      actions:
+        - evaluate-release-gate
+        - inspect-evidence-diff
+        - commit-governed-release
+        - create-remediation-tasks
+      skills:
+        - tracegate-governance-skill
+
+  action:
+    - key: evaluate-release-gate
+      name: Evaluate Release Gate
+      function: evaluate-gate-fn
+      actionVerb: GET
+      description: Run deterministic policy, FMEA blast-radius, Segregation of Duties,
+        and SHA-256 drift evaluation.
+      inputs:
+        actorId:
+          title: Actor ID
+          type: string
+          required: false
+          description: Optional identifier of the calling agent or user.
+
+    - key: inspect-evidence-diff
+      name: Inspect Evidence Diff
+      function: inspect-diff-fn
+      actionVerb: GET
+      description: Return exact approved-vs-live clause diffs and BFS downstream
+        suspect path.
+      inputs:
+        actorId:
+          title: Actor ID
+          type: string
+          required: false
+          description: Optional identifier of the calling agent or user.
+
+    - key: commit-governed-release
+      name: Commit Governed Release
+      function: commit-release-fn
+      actionVerb: UPDATE
+      description: Execute Phase 2 Commit by re-verifying the live evidence
+        fingerprint before transitioning the Jira release gate.
+      inputs:
+        expectedFingerprint:
+          title: Expected Evidence Fingerprint
+          type: string
+          required: false
+          description: SHA-256 fingerprint captured during evaluate-release-gate.
+        actorId:
+          title: Actor ID
+          type: string
+          required: false
+          description: Optional identifier of the calling agent or user.
+
+    - key: create-remediation-tasks
+      name: Create Remediation Tasks
+      function: create-remediation-fn
+      actionVerb: CREATE
+      description: Create linked Jira remediation tasks for unresolved compliance blockers.
+      inputs:
+        actorId:
+          title: Actor ID
+          type: string
+          required: false
+          description: Optional identifier of the calling agent or user.
+
+  trigger:
+    - key: tracegate-confluence-drift-trigger
+      function: confluence-trigger-fn
+      events:
+        - avi:confluence:updated:page
+    - key: tracegate-jira-drift-trigger
+      function: jira-trigger-fn
+      events:
+        - avi:jira:updated:issue
+
+  sql:
+    - key: tracegate-sql-db
+      engine: mysql
+
+  function:
+    - key: resolver-fn
+      handler: index.resolverHandler
+    - key: evaluate-gate-fn
+      handler: index.evaluateReleaseGate
+    - key: inspect-diff-fn
+      handler: index.inspectEvidenceDiff
+    - key: commit-release-fn
+      handler: index.commitGovernedRelease
+    - key: create-remediation-fn
+      handler: index.createRemediationTasks
+    - key: workflow-validator-fn
+      handler: index.validateReleaseTransition
+    - key: confluence-trigger-fn
+      handler: index.onConfluencePageUpdated
+    - key: jira-trigger-fn
+      handler: index.onJiraIssueUpdated
+
+resources:
+  - key: main-ui
+    path: static/ui/dist
+
+permissions:
+  scopes:
+    - storage:app
+    - read:jira-work
+    - write:jira-work
+    - read:jira-user
+    - read:confluence-content.all
+    - read:confluence-content.summary
+    - write:confluence-content
+    - read:space:confluence
+    - read:page:confluence
+    - write:page:confluence
+    - delete:page:confluence

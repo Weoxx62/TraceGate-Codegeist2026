@@ -1,0 +1,38 @@
+{
+  "name": "tracegate",
+  "version": "1.0.0",
+  "description": "TraceGate — Deterministic regulatory traceability, cryptographic drift detection, and MCP execution gate for Atlassian Forge.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build:ui": "vite build static/ui",
+    "verify:forge": "node scripts/verify-forge.mjs",
+    "build": "npm run typecheck && npm run build:ui && npm run verify:forge",
+    "preview:ui": "vite preview static/ui --port 4173",
+    "dev:ui": "vite static/ui --port 5173",
+    "forge:version": "forge --version",
+    "forge:lint": "forge lint"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@forge/api": "latest",
+    "@forge/kvs": "^2.1.3",
+    "@forge/resolver": "latest",
+    "@forge/sql": "latest"
+  },
+  "devDependencies": {
+    "@forge/bridge": "latest",
+    "@forge/cli": "latest",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  }
+}

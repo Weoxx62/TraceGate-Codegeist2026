@@ -1,0 +1,10 @@
+node_modules/
+dist/
+static/ui/dist/
+.env
+.env.*
+BRIEF.md
+PLAN_BATAILLE_FR.md
+DEVPOST_SUBMISSION_KIT.md
+*.log
+.DS_Store
